@@ -1,10 +1,9 @@
-const CACHE_NAME = "fluxo-pessoal-v2";
+const CACHE_NAME = "fluxo-pessoal-v3";
 const APP_SHELL = [
   "/",
   "/index.html",
   "/manifest.webmanifest",
-  "/favicon.svg",
-  "/finance-mark.svg",
+  "/logo.png",
   "/sw.js",
 ];
 

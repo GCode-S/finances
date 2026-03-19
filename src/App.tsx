@@ -17,7 +17,6 @@ import { EntriesPage } from './pages/EntriesPage.tsx'
 import { SettingsPage } from './pages/SettingsPage.tsx'
 import {
   db,
-  ensureDefaultFixedExpenses,
   ensureSettings,
   expenseCategories,
   incomeCategories,
@@ -361,7 +360,6 @@ function App() {
 
   useEffect(() => {
     void ensureSettings()
-    void ensureDefaultFixedExpenses()
   }, [])
 
   useEffect(() => {
@@ -577,8 +575,6 @@ function App() {
 
         if (nextFixedExpenses.length > 0) {
           await db.fixedExpenses.bulkAdd(nextFixedExpenses)
-        } else {
-          await ensureDefaultFixedExpenses()
         }
       })
 

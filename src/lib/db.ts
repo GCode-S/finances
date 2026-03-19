@@ -102,17 +102,3 @@ export async function ensureSettings(): Promise<AppSettings> {
   await db.settings.put(defaults)
   return defaults
 }
-
-export async function ensureDefaultFixedExpenses() {
-  const count = await db.fixedExpenses.count()
-
-  if (count > 0) {
-    return
-  }
-
-  await db.fixedExpenses.add({
-    label: 'Conta de energia',
-    category: 'Moradia',
-    amount: 180,
-  })
-}
