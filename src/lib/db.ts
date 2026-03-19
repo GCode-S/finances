@@ -77,6 +77,7 @@ export const expenseCategories = [
 ]
 
 export const incomeCategories = [
+  'Salario',
   'Renda extra',
   'Freelance',
   'Investimentos',
@@ -84,6 +85,9 @@ export const incomeCategories = [
   'Venda',
   'Outros ganhos',
 ]
+
+export const MONTHLY_INCOME_CATEGORY = 'Salario'
+export const MONTHLY_INCOME_NOTE = 'Renda mensal fixa'
 
 export async function ensureSettings(): Promise<AppSettings> {
   const current = await db.settings.get('main')
@@ -101,4 +105,40 @@ export async function ensureSettings(): Promise<AppSettings> {
 
   await db.settings.put(defaults)
   return defaults
+}
+
+export async function ensureMonthlyIncomeTransaction(
+  month: string,
+  amount: number,
+): Promise<void> {
+  if (amount <= 0) {
+    return
+  }
+
+  const existing = await db.transactions
+    .filter(
+      (t) =>
+        t.date.startsWith(month) &&
+        t.kind === 'income' &&
+        t.category === MONTHLY_INCOME_CATEGORY &&
+        t.note === MONTHLY_INCOME_NOTE,
+    )
+    .first()
+
+  if (existing) {
+    if (existing.id !== undefined && Math.abs(existing.amount - amount) >= 0.0001) {
+      await db.transactions.update(existing.id, { amount })
+    }
+    return
+  }
+
+  await db.transactions.add({
+    kind: 'income',
+    category: MONTHLY_INCOME_CATEGORY,
+    amount,
+    date: `${month}-01`,
+    note: MONTHLY_INCOME_NOTE,
+    isRecurring: false,
+    createdAt: new Date().toISOString(),
+  })
 }
