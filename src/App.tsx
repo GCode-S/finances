@@ -18,6 +18,7 @@ import { SettingsPage } from './pages/SettingsPage.tsx'
 import {
   db,
   ensureSettings,
+  ensureMonthlyIncomeTransaction,
   expenseCategories,
   incomeCategories,
   type AppSettings,
@@ -261,7 +262,7 @@ function App() {
 
   const fixedIncome = settings?.monthlyIncome ?? 0
   const expenses = monthNonRecurringExpense + recurringExpensesTotal
-  const available = fixedIncome + monthIncome
+  const available = monthIncome
   const balance = available - expenses
 
   const visibleTransactions =
@@ -361,6 +362,12 @@ function App() {
   useEffect(() => {
     void ensureSettings()
   }, [])
+
+  useEffect(() => {
+    if (settings && settings.monthlyIncome > 0) {
+      void ensureMonthlyIncomeTransaction(getCurrentMonth(), settings.monthlyIncome)
+    }
+  }, [settings])
 
   useEffect(() => {
     const root = document.documentElement
