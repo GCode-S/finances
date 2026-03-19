@@ -1,0 +1,247 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Aptos", "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  --font-display: "Bahnschrift", "Aptos Display", "Segoe UI Variable Display", sans-serif;
+  --color-sand-50: #f7f2ea;
+  --color-sand-100: #efe7da;
+  --color-ink-950: #0f172a;
+  --color-ink-900: #162235;
+  --color-mint-400: #6ee7b7;
+  --color-coral-400: #fb7185;
+  --color-gold-300: #f5d98b;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --bg: #f4efe7;
+    --panel: rgba(255, 250, 245, 0.8);
+    --panel-strong: rgba(255, 255, 255, 0.92);
+    --line: rgba(105, 86, 70, 0.12);
+    --text: #1c2433;
+    --text-muted: #5d6778;
+    --accent: #0f766e;
+    --accent-soft: rgba(15, 118, 110, 0.1);
+    --danger: #be123c;
+    --warn: #b7791f;
+    --good: #047857;
+    --shadow-card: 0 10px 24px rgba(20, 27, 38, 0.08);
+    --hero-glow: radial-gradient(circle at top right, rgba(15, 118, 110, 0.18), transparent 35%),
+      radial-gradient(circle at left center, rgba(190, 24, 93, 0.14), transparent 30%),
+      linear-gradient(135deg, rgba(255, 255, 255, 0.62), rgba(247, 242, 234, 0.36));
+  }
+
+  .dark {
+    color-scheme: dark;
+    --bg: #0d141f;
+    --panel: rgba(14, 24, 39, 0.76);
+    --panel-strong: rgba(15, 23, 42, 0.92);
+    --line: rgba(167, 181, 205, 0.14);
+    --text: #edf4ff;
+    --text-muted: #9fb0c7;
+    --accent: #7dd3c0;
+    --accent-soft: rgba(125, 211, 192, 0.12);
+    --danger: #fb7185;
+    --warn: #f5d98b;
+    --good: #6ee7b7;
+    --shadow-card: 0 12px 30px rgba(0, 0, 0, 0.28);
+    --hero-glow: radial-gradient(circle at top right, rgba(110, 231, 183, 0.16), transparent 32%),
+      radial-gradient(circle at left center, rgba(251, 113, 133, 0.14), transparent 30%),
+      linear-gradient(135deg, rgba(15, 23, 42, 0.86), rgba(12, 19, 31, 0.92));
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at top, rgba(255, 255, 255, 0.45), transparent 28%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.32), transparent 18%),
+      var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  button,
+  [role='button'] {
+    cursor: pointer;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: color-mix(in srgb, var(--text-muted) 75%, transparent);
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply border backdrop-blur-xl;
+    border-color: var(--line);
+    background: var(--panel);
+    box-shadow: var(--shadow-card);
+  }
+
+  .hero-panel {
+    background: var(--hero-glow);
+  }
+
+  .section-title {
+    @apply font-display text-2xl leading-tight tracking-[-0.04em] md:text-3xl;
+    color: var(--text);
+  }
+
+  .section-kicker {
+    @apply text-xs font-semibold uppercase tracking-[0.32em];
+    color: var(--accent);
+  }
+
+  .field-label {
+    @apply mb-2 block text-sm font-semibold;
+    color: var(--text);
+  }
+
+  .field-control {
+    @apply w-full rounded-2xl border px-4 py-3 text-base outline-none transition duration-200;
+    border-color: var(--line);
+    background: var(--panel-strong);
+    color: var(--text);
+  }
+
+  .field-control:focus-visible {
+    border-color: color-mix(in srgb, var(--accent) 45%, white);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+
+  .pressable {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    transition:
+      transform 180ms ease,
+      box-shadow 200ms ease,
+      border-color 200ms ease,
+      background-color 200ms ease,
+      color 200ms ease;
+  }
+
+  .pressable:hover {
+    transform: translateY(-1px);
+  }
+
+  .pressable:active {
+    transform: scale(0.985);
+  }
+
+  .pressable::after {
+    position: absolute;
+    left: var(--ripple-x, 50%);
+    top: var(--ripple-y, 50%);
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 9999px;
+    background: color-mix(in srgb, white 65%, transparent);
+    content: "";
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -50%) scale(0);
+  }
+
+  .pressable.ripple-active::after {
+    animation: ripple-burst 520ms ease-out;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel-strong) 88%, transparent);
+    color: var(--text);
+  }
+
+  .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition:
+      opacity 420ms ease,
+      transform 420ms ease;
+  }
+
+  .reveal.reveal-in {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .page-enter {
+    animation: page-enter 320ms ease;
+  }
+}
+
+@keyframes ripple-burst {
+  0% {
+    opacity: 0.42;
+    transform: translate(-50%, -50%) scale(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(18);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .pressable,
+  .reveal {
+    transition: none;
+  }
+
+  .pressable::after {
+    display: none;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

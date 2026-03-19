@@ -1,0 +1,17 @@
+{
+  "name": "Fluxo Pessoal",
+  "short_name": "Fluxo",
+  "description": "Controle financeiro pessoal responsivo, offline e com exportacao/importacao JSON.",
+  "start_url": "/#dashboard",
+  "display": "standalone",
+  "background_color": "#f4efe7",
+  "theme_color": "#0d141f",
+  "icons": [
+    {
+      "src": "/finance-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
