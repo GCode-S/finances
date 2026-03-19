@@ -16,7 +16,7 @@ interface BackupPageProps {
 export function BackupPage({ onExport, onImport, onClear, totals }: BackupPageProps) {
   return (
     <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-      <section className="rounded-3xl border p-5" style={{ borderColor: 'var(--line)', background: 'var(--panel-strong)' }}>
+      <section data-reveal className="rounded-3xl border p-5" style={{ borderColor: 'var(--line)', background: 'var(--panel-strong)' }}>
         <p className="section-kicker">Pagina de backup</p>
         <h2 className="section-title mt-2">Exportar e restaurar dados</h2>
         <p className="mt-3 text-sm text-(--text-muted)">
@@ -60,7 +60,7 @@ export function BackupPage({ onExport, onImport, onClear, totals }: BackupPagePr
         </div>
       </section>
 
-      <section className="rounded-3xl border p-5" style={{ borderColor: 'var(--line)', background: 'var(--panel-strong)' }}>
+      <section data-reveal className="rounded-3xl border p-5" style={{ borderColor: 'var(--line)', background: 'var(--panel-strong)' }}>
         <p className="section-kicker">Resumo</p>
         <h3 className="section-title mt-2">Estado atual dos dados</h3>
 
@@ -77,7 +77,7 @@ export function BackupPage({ onExport, onImport, onClear, totals }: BackupPagePr
 
 function StatTile({ label, value }: { label: string; value: string }) {
   return (
-    <article className="rounded-2xl border p-4" style={{ borderColor: 'var(--line)', background: 'var(--panel)' }}>
+    <article data-reveal className="rounded-2xl border p-4" style={{ borderColor: 'var(--line)', background: 'var(--panel)' }}>
       <p className="text-sm font-semibold text-(--text-muted)">{label}</p>
       <p className="mt-2 text-lg font-semibold text-(--text)">{value}</p>
     </article>

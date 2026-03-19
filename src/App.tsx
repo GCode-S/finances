@@ -22,6 +22,7 @@ import {
   incomeCategories,
   type AppSettings,
   type FixedExpenseItem,
+  type MonthlyScore,
   type Theme,
   type TransactionItem,
   type TransactionKind,
@@ -98,6 +99,19 @@ function formatMonth(month: string) {
   }).format(new Date(year, monthNumber - 1, 1))
 
   return value.slice(0, 1).toUpperCase() + value.slice(1)
+}
+
+function getProjectedDateForMonth(originalDate: string, month: string) {
+  const [year, monthNumber] = month.split('-').map(Number)
+  const day = Number(originalDate.slice(8, 10))
+
+  if (!year || !monthNumber || !Number.isFinite(day) || day <= 0) {
+    return `${month}-01`
+  }
+
+  const maxDay = new Date(year, monthNumber, 0).getDate()
+  const normalizedDay = String(Math.min(day, maxDay)).padStart(2, '0')
+  return `${month}-${normalizedDay}`
 }
 
 function getEntryDefaults(kind: TransactionKind = 'expense'): EntryFormState {
@@ -228,6 +242,7 @@ function App() {
     [],
   )
   const fixedExpenses = useLiveQuery(() => db.fixedExpenses.toArray(), [])
+  const monthlyScores = useLiveQuery(() => db.monthlyScores.orderBy('month').reverse().toArray(), [])
 
   const [page, setPage] = useState<PageKey>(getPageFromHash)
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth)
@@ -235,34 +250,90 @@ function App() {
   const [entryForm, setEntryForm] = useState<EntryFormState>(getEntryDefaults())
   const [flash, setFlash] = useState<FlashMessage | null>(null)
   const [isOnline, setIsOnline] = useState(() => navigator.onLine)
+  const isBootLoading = !settings || !transactions || !fixedExpenses
 
   const activeTheme = settings?.theme ?? defaultTheme
   const availableCategories =
     entryForm.kind === 'expense' ? expenseCategories : incomeCategories
   const allTransactions = useMemo(() => transactions ?? [], [transactions])
   const legacyFixedExpenses = useMemo(() => fixedExpenses ?? [], [fixedExpenses])
+  const fixedIncome = settings?.monthlyIncome ?? 0
+  const legacyRecurringTotal = legacyFixedExpenses.reduce((sum, item) => sum + item.amount, 0)
 
-  const recurringFromEntries = allTransactions
-    .filter((item) => item.kind === 'expense' && item.isRecurring)
+  const monthTransactions = useMemo(() => {
+    const monthlyEntries = allTransactions.filter((item) => {
+      if (item.kind === 'expense' && item.isRecurring) {
+        return item.date.slice(0, 7) <= selectedMonth
+      }
+
+      return item.date.startsWith(selectedMonth)
+    })
+
+    const projectedRecurring = monthlyEntries.map((item) => {
+      if (item.kind !== 'expense' || !item.isRecurring || item.date.startsWith(selectedMonth)) {
+        return item
+      }
+
+      return {
+        ...item,
+        date: getProjectedDateForMonth(item.date, selectedMonth),
+      }
+    })
+
+    const projectedLegacyFixed: TransactionItem[] = legacyFixedExpenses.map((item, index) => ({
+      kind: 'expense',
+      category: item.category,
+      amount: item.amount,
+      date: `${selectedMonth}-01`,
+      note: item.label,
+      isRecurring: true,
+      createdAt: `legacy-fixed-${selectedMonth}-${index}`,
+    }))
+
+    return [...projectedRecurring, ...projectedLegacyFixed].sort((left, right) => {
+      const byDate = right.date.localeCompare(left.date)
+      if (byDate !== 0) {
+        return byDate
+      }
+
+      return right.createdAt.localeCompare(left.createdAt)
+    })
+  }, [allTransactions, legacyFixedExpenses, selectedMonth])
+
+  const monthIncomeFromEntries = monthTransactions
+    .filter((item) => item.kind === 'income')
     .reduce((sum, item) => sum + item.amount, 0)
 
-  const recurringFromLegacy = legacyFixedExpenses.reduce((sum, item) => sum + item.amount, 0)
+  const monthIncome = fixedIncome + monthIncomeFromEntries
 
-  const recurringExpensesTotal = recurringFromEntries + recurringFromLegacy
-
-  const monthTransactions = allTransactions.filter((item) => item.date.startsWith(selectedMonth))
-  const monthIncome = monthTransactions
-    .filter((item) => item.kind === 'income')
+  const recurringExpensesTotal = monthTransactions
+    .filter((item) => item.kind === 'expense' && item.isRecurring)
     .reduce((sum, item) => sum + item.amount, 0)
 
   const monthNonRecurringExpense = monthTransactions
     .filter((item) => item.kind === 'expense' && !item.isRecurring)
     .reduce((sum, item) => sum + item.amount, 0)
 
-  const fixedIncome = settings?.monthlyIncome ?? 0
   const expenses = monthNonRecurringExpense + recurringExpensesTotal
-  const available = fixedIncome + monthIncome
+  const available = monthIncome
   const balance = available - expenses
+
+  // ── Monthly score (0–1000) ─────────────────────────────────────────────────
+  const currentScore = useMemo(() => {
+    if (available <= 0) return 0
+    const savingsRatio = balance / available
+    const reserveAmount = monthTransactions
+      .filter((item) => item.kind === 'expense' && item.category.toLowerCase() === 'reserva')
+      .reduce((sum, item) => sum + item.amount, 0)
+    const reserveRatio = reserveAmount / Math.max(available, 1)
+    const balancePoints = Math.max(0, Math.min(700, (savingsRatio * 0.5 + 0.5) * 700))
+    const reservePoints = Math.min(200, reserveRatio * 800)
+    const hasIncomeEntry = monthTransactions.some((item) => item.kind === 'income')
+    const activityPoints = hasIncomeEntry ? 100 : 0
+    return Math.round(Math.min(1000, balancePoints + reservePoints + activityPoints))
+  }, [available, balance, monthTransactions])
+
+  const savedScores: MonthlyScore[] = monthlyScores ?? []
 
   const visibleTransactions =
     filterKind === 'all'
@@ -271,27 +342,17 @@ function App() {
 
   const categorySummary = useMemo(() => {
     const summary = monthTransactions
-      .filter((item) => item.kind === 'expense' && !item.isRecurring)
+      .filter((item) => item.kind === 'expense')
       .reduce<Record<string, number>>((acc, item) => {
         acc[item.category] = (acc[item.category] ?? 0) + item.amount
         return acc
       }, {})
 
-    allTransactions
-      .filter((item) => item.kind === 'expense' && item.isRecurring)
-      .forEach((item) => {
-        summary[item.category] = (summary[item.category] ?? 0) + item.amount
-      })
-
-    legacyFixedExpenses.forEach((item) => {
-      summary[item.category] = (summary[item.category] ?? 0) + item.amount
-    })
-
     return Object.entries(summary)
       .sort((left, right) => right[1] - left[1])
       .slice(0, 6)
       .map(([category, amount]) => ({ category, amount }))
-  }, [monthTransactions, allTransactions, legacyFixedExpenses])
+  }, [monthTransactions])
 
   const biggestCategory = categorySummary[0]
 
@@ -309,7 +370,7 @@ function App() {
         .replace('.', '')
 
       const monthItems = allTransactions.filter((item) => item.date.startsWith(month))
-      const income = monthItems
+      const variableIncome = monthItems
         .filter((item) => item.kind === 'income')
         .reduce((sum, item) => sum + item.amount, 0)
 
@@ -317,14 +378,18 @@ function App() {
         .filter((item) => item.kind === 'expense' && !item.isRecurring)
         .reduce((sum, item) => sum + item.amount, 0)
 
+      const recurringFromEntries = allTransactions
+        .filter((item) => item.kind === 'expense' && item.isRecurring && item.date.slice(0, 7) <= month)
+        .reduce((sum, item) => sum + item.amount, 0)
+
       return {
         month,
         label,
-        income,
-        expenses: monthOneTimeExpense + recurringExpensesTotal,
+        income: variableIncome + fixedIncome,
+        expenses: monthOneTimeExpense + recurringFromEntries + legacyRecurringTotal,
       }
     })
-  }, [allTransactions, recurringExpensesTotal])
+  }, [allTransactions, fixedIncome, legacyRecurringTotal])
 
   const insights: DashboardInsight[] = [
     balance < 0
@@ -409,6 +474,62 @@ function App() {
     const timerId = window.setTimeout(() => setFlash(null), 2800)
     return () => window.clearTimeout(timerId)
   }, [flash])
+
+  useEffect(() => {
+    if (!selectedMonth || isBootLoading) {
+      return
+    }
+
+    const existing = savedScores.find((item) => item.month === selectedMonth)
+
+    if (existing?.score === currentScore) {
+      return
+    }
+
+    void db.monthlyScores.put({
+      month: selectedMonth,
+      score: currentScore,
+      savedAt: new Date().toISOString(),
+    })
+  }, [currentScore, isBootLoading, savedScores, selectedMonth])
+
+  useEffect(() => {
+    const nodes = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-reveal]'),
+    )
+
+    if (nodes.length === 0) {
+      return
+    }
+
+    nodes.forEach((node, index) => {
+      node.classList.add('reveal')
+      node.style.setProperty('--reveal-delay', `${Math.min(index * 70, 280)}ms`)
+    })
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) {
+            return
+          }
+
+          entry.target.classList.add('reveal-in')
+          observer.unobserve(entry.target)
+        })
+      },
+      {
+        threshold: 0.16,
+        rootMargin: '0px 0px -40px 0px',
+      },
+    )
+
+    nodes.forEach((node) => observer.observe(node))
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [page])
 
   async function saveEntry(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -670,66 +791,83 @@ function App() {
           </div>
         </nav>
 
-        <section className="glass-panel rounded-4xl p-4 md:p-6 page-enter">
-          {page === 'dashboard' ? (
-            <DashboardPage
-              selectedMonth={selectedMonth}
-              onMonthChange={setSelectedMonth}
-              monthLabel={formatMonth(selectedMonth)}
-              metrics={{
-                balance: formatMoney(balance),
-                income: formatMoney(available),
-                expenses: formatMoney(expenses),
-                recurringExpenses: formatMoney(recurringExpensesTotal),
-              }}
-              trend={monthlyTrend}
-              isDark={activeTheme === 'dark'}
-              categorySummary={categorySummary}
-              totalExpenses={Math.max(expenses, 1)}
-              insights={insights}
-            />
-          ) : null}
+        <section className="glass-panel rounded-4xl p-4 md:p-6">
+          {isBootLoading ? (
+            <div className="grid gap-4">
+              <div className="h-8 w-44 rounded-xl page-loader" />
+              <div className="h-24 rounded-2xl page-loader" />
+              <div className="h-24 rounded-2xl page-loader" />
+            </div>
+          ) : (
+            <div key={page} className="page-enter">
+              {page === 'dashboard' ? (
+                <DashboardPage
+                  selectedMonth={selectedMonth}
+                  onMonthChange={setSelectedMonth}
+                  monthLabel={formatMonth(selectedMonth)}
+                  metrics={{
+                    balance: formatMoney(balance),
+                    income: formatMoney(available),
+                    expenses: formatMoney(expenses),
+                    recurringExpenses: formatMoney(recurringExpensesTotal),
+                  }}
+                  trend={monthlyTrend}
+                  isDark={activeTheme === 'dark'}
+                  categorySummary={categorySummary}
+                  totalExpenses={Math.max(expenses, 1)}
+                  insights={insights}
+                  financialHealth={{
+                    balance,
+                    income: available,
+                    expenses,
+                  }}
+                  score={currentScore}
+                  scoreHistory={savedScores.slice(0, 6)}
+                  monthlyIncome={fixedIncome}
+                  onSaveMonthlyIncome={saveMonthlyIncome}
+                />
+              ) : null}
 
-          {page === 'entries' ? (
-            <EntriesPage
-              selectedMonth={selectedMonth}
-              onMonthChange={setSelectedMonth}
-              form={entryForm}
-              onFormChange={setEntryForm}
-              availableCategories={availableCategories}
-              onKindChange={(kind) => setEntryForm(getEntryDefaults(kind))}
-              onSubmit={saveEntry}
-              filterKind={filterKind}
-              onFilterKindChange={setFilterKind}
-              transactions={visibleTransactions}
-              onRemove={removeEntry}
-            />
-          ) : null}
+              {page === 'entries' ? (
+                <EntriesPage
+                  selectedMonth={selectedMonth}
+                  onMonthChange={setSelectedMonth}
+                  form={entryForm}
+                  onFormChange={setEntryForm}
+                  availableCategories={availableCategories}
+                  onKindChange={(kind) => setEntryForm(getEntryDefaults(kind))}
+                  onSubmit={saveEntry}
+                  filterKind={filterKind}
+                  onFilterKindChange={setFilterKind}
+                  transactions={visibleTransactions}
+                  onRemove={removeEntry}
+                />
+              ) : null}
 
-          {page === 'backup' ? (
-            <BackupPage
-              onExport={exportData}
-              onImport={importData}
-              onClear={clearData}
-              totals={{
-                entries: allTransactions.length,
-                recurringEntries: allTransactions.filter((item) => item.isRecurring).length,
-                fixedIncome: formatMoney(fixedIncome),
-                month: formatMonth(selectedMonth),
-              }}
-            />
-          ) : null}
+              {page === 'backup' ? (
+                <BackupPage
+                  onExport={exportData}
+                  onImport={importData}
+                  onClear={clearData}
+                  totals={{
+                    entries: allTransactions.length,
+                    recurringEntries: allTransactions.filter((item) => item.isRecurring).length,
+                    fixedIncome: formatMoney(fixedIncome),
+                    month: formatMonth(selectedMonth),
+                  }}
+                />
+              ) : null}
 
-          {page === 'settings' ? (
-            <SettingsPage
-              currentTheme={activeTheme}
-              onToggleTheme={toggleTheme}
-              onSaveMonthlyIncome={saveMonthlyIncome}
-              monthlyIncome={String(fixedIncome)}
-              isOnline={isOnline}
-              themeIcon={activeTheme === 'dark' ? <SunMedium size={16} /> : <MoonStar size={16} />}
-            />
-          ) : null}
+              {page === 'settings' ? (
+                <SettingsPage
+                  currentTheme={activeTheme}
+                  onToggleTheme={toggleTheme}
+                  isOnline={isOnline}
+                  themeIcon={activeTheme === 'dark' ? <SunMedium size={16} /> : <MoonStar size={16} />}
+                />
+              ) : null}
+            </div>
+          )}
         </section>
 
         {flash ? (

@@ -1,5 +1,6 @@
 import { ArrowDownRight, ArrowUpRight, Trash2 } from 'lucide-react'
 import type { FormEvent } from 'react'
+import { useState } from 'react'
 import type { TransactionItem, TransactionKind } from '../lib/db'
 
 type FilterKind = 'all' | TransactionKind
@@ -51,9 +52,11 @@ export function EntriesPage({
   transactions,
   onRemove,
 }: EntriesPageProps) {
+  const [showCategoryList, setShowCategoryList] = useState(false)
+
   return (
     <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-      <form onSubmit={onSubmit} className="rounded-3xl border p-5" style={{ borderColor: 'var(--line)', background: 'var(--panel-strong)' }}>
+      <form data-reveal onSubmit={onSubmit} className="rounded-3xl border p-5" style={{ borderColor: 'var(--line)', background: 'var(--panel-strong)' }}>
         <p className="section-kicker">Pagina de lancamento</p>
         <h2 className="section-title mt-2">Criar registro de gasto ou entrada</h2>
 
@@ -69,32 +72,83 @@ export function EntriesPage({
           </label>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <label>
+            <div>
               <span className="field-label">Tipo</span>
-              <select
-                value={form.kind}
-                onChange={(event) => onKindChange(event.target.value as TransactionKind)}
-                className="field-control"
-              >
-                <option value="expense">Gasto</option>
-                <option value="income">Entrada</option>
-              </select>
-            </label>
+              <div className="grid grid-cols-2 gap-2 rounded-2xl border p-1.5" style={{ borderColor: 'var(--line)', background: 'var(--panel)' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onKindChange('expense')
+                    setShowCategoryList(false)
+                  }}
+                  className="pressable inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold"
+                  style={{
+                    background: form.kind === 'expense' ? 'var(--danger)' : 'transparent',
+                    color: form.kind === 'expense' ? '#fff' : 'var(--text)',
+                  }}
+                >
+                  <ArrowDownRight size={16} />
+                  Gasto
+                </button>
 
-            <label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onKindChange('income')
+                    setShowCategoryList(false)
+                  }}
+                  className="pressable inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold"
+                  style={{
+                    background: form.kind === 'income' ? 'var(--good)' : 'transparent',
+                    color: form.kind === 'income' ? '#fff' : 'var(--text)',
+                  }}
+                >
+                  <ArrowUpRight size={16} />
+                  Entrada
+                </button>
+              </div>
+            </div>
+
+            <div>
               <span className="field-label">Categoria</span>
-              <input
-                list="entry-categories"
-                value={form.category}
-                onChange={(event) => onFormChange({ ...form, category: event.target.value })}
-                className="field-control"
-              />
-              <datalist id="entry-categories">
-                {availableCategories.map((category) => (
-                  <option key={category} value={category} />
-                ))}
-              </datalist>
-            </label>
+              <div className="space-y-2">
+                <input
+                  value={form.category}
+                  onChange={(event) => onFormChange({ ...form, category: event.target.value })}
+                  className="field-control"
+                  placeholder="Escolha ou escreva uma categoria"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setShowCategoryList((prev) => !prev)}
+                  className="pressable w-full rounded-xl border px-3 py-2 text-sm font-semibold"
+                  style={{ borderColor: 'var(--line)', background: 'var(--panel)', color: 'var(--text)' }}
+                >
+                  {showCategoryList ? 'Ocultar categorias pre-definidas' : 'Ver categorias pre-definidas'}
+                </button>
+
+                {showCategoryList ? (
+                  <div className="grid max-h-36 grid-cols-2 gap-2 overflow-auto rounded-xl border p-2" style={{ borderColor: 'var(--line)', background: 'var(--panel)' }}>
+                    {availableCategories.map((category) => (
+                      <button
+                        key={category}
+                        type="button"
+                        onClick={() => onFormChange({ ...form, category })}
+                        className="pressable rounded-lg border px-2.5 py-2 text-xs font-semibold"
+                        style={{
+                          borderColor: 'var(--line)',
+                          background: form.category === category ? 'var(--accent)' : 'var(--panel-strong)',
+                          color: form.category === category ? '#fff' : 'var(--text)',
+                        }}
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -153,7 +207,7 @@ export function EntriesPage({
         </button>
       </form>
 
-      <section className="rounded-3xl border p-5" style={{ borderColor: 'var(--line)', background: 'var(--panel-strong)' }}>
+      <section data-reveal className="rounded-3xl border p-5" style={{ borderColor: 'var(--line)', background: 'var(--panel-strong)' }}>
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="section-kicker">Historico</p>
@@ -184,6 +238,7 @@ export function EntriesPage({
             transactions.map((item) => (
               <article
                 key={`${item.id ?? item.createdAt}-${item.createdAt}`}
+                data-reveal
                 className="rounded-3xl border p-4"
                 style={{ borderColor: 'var(--line)', background: 'var(--panel)' }}
               >
@@ -221,8 +276,14 @@ export function EntriesPage({
                     <button
                       type="button"
                       onClick={() => onRemove(item.id)}
+                      disabled={typeof item.id !== 'number'}
                       className="pressable inline-flex rounded-2xl border p-3"
-                      style={{ borderColor: 'var(--line)', color: 'var(--danger)' }}
+                      style={{
+                        borderColor: 'var(--line)',
+                        color: typeof item.id === 'number' ? 'var(--danger)' : 'var(--text-muted)',
+                        opacity: typeof item.id === 'number' ? 1 : 0.55,
+                        cursor: typeof item.id === 'number' ? 'pointer' : 'not-allowed',
+                      }}
                     >
                       <Trash2 size={16} />
                     </button>

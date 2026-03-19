@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import {
   Bar,
   BarChart,
@@ -90,10 +91,43 @@ export function MonthlyChart({ data, isDark }: Props) {
   const expenseColor = isDark ? '#fb7185' : '#be123c'
   const gridColor = isDark ? 'rgba(167,181,205,0.1)' : 'rgba(105,86,70,0.1)'
   const tickColor = isDark ? '#9fb0c7' : '#5d6778'
+  const chartRef = useRef<HTMLDivElement | null>(null)
+  const [animationSeed, setAnimationSeed] = useState(0)
+
+  useEffect(() => {
+    const node = chartRef.current
+
+    if (!node) {
+      return
+    }
+
+    let active = false
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.intersectionRatio >= 0.6 && !active) {
+          setAnimationSeed((prev) => prev + 1)
+          active = true
+        }
+
+        if (entry.intersectionRatio < 0.2) {
+          active = false
+        }
+      },
+      {
+        threshold: [0, 0.2, 0.6, 0.8],
+      },
+    )
+
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
 
   return (
+    <div ref={chartRef}>
     <ResponsiveContainer width="100%" height={220}>
       <BarChart
+        key={animationSeed}
         data={data}
         barGap={3}
         barCategoryGap="30%"
@@ -120,6 +154,10 @@ export function MonthlyChart({ data, isDark }: Props) {
           fill={incomeColor}
           radius={[6, 6, 0, 0]}
           maxBarSize={44}
+          isAnimationActive
+          animationDuration={900}
+          animationEasing="ease-out"
+          animationBegin={120}
         />
         <Bar
           dataKey="expenses"
@@ -127,8 +165,13 @@ export function MonthlyChart({ data, isDark }: Props) {
           fill={expenseColor}
           radius={[6, 6, 0, 0]}
           maxBarSize={44}
+          isAnimationActive
+          animationDuration={1050}
+          animationEasing="ease-out"
+          animationBegin={210}
         />
       </BarChart>
     </ResponsiveContainer>
+    </div>
   )
 }

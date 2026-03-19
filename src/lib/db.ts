@@ -34,11 +34,18 @@ export interface FixedExpenseItem {
   amount: number
 }
 
+export interface MonthlyScore {
+  month: string   // "YYYY-MM" — primary key
+  score: number   // 0–1000
+  savedAt: string // ISO timestamp
+}
+
 class FinancesDatabase extends Dexie {
   settings!: Table<AppSettings, AppSettings['id']>
   transactions!: Table<TransactionItem, number>
   budgets!: Table<BudgetItem, number>
   fixedExpenses!: Table<FixedExpenseItem, number>
+  monthlyScores!: Table<MonthlyScore, string>
 
   constructor() {
     super('fluxo-pessoal-db')
@@ -58,6 +65,10 @@ class FinancesDatabase extends Dexie {
 
     this.version(4).stores({
       transactions: '++id, kind, category, date, createdAt, isRecurring',
+    })
+
+    this.version(5).stores({
+      monthlyScores: 'month, savedAt',
     })
   }
 }
